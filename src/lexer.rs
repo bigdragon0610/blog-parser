@@ -6,7 +6,6 @@ enum RootTags {
     P(P),
     A(A),
     Img(Img),
-    Ul(Ul),
     Li(Li),
     Pre(Pre),
 }
@@ -21,10 +20,10 @@ struct H2(String);
 struct H3(String);
 
 #[derive(Debug, PartialEq)]
-struct P(Vec<PContent>);
+struct P(Vec<Contents>);
 
 #[derive(Debug, PartialEq)]
-enum PContent {
+enum Contents {
     Text(Text),
     Strong(Strong),
     Em(Em),
@@ -56,20 +55,10 @@ struct Img {
 }
 
 #[derive(Debug, PartialEq)]
-enum LiContent {
-    Text(Text),
-    Ul(Ul),
-    Ol(Ol),
+struct Li {
+    indent: usize,
+    content: Contents,
 }
-
-#[derive(Debug, PartialEq)]
-struct Ul(Vec<Li>);
-
-#[derive(Debug, PartialEq)]
-struct Ol(Vec<Li>);
-
-#[derive(Debug, PartialEq)]
-struct Li(Vec<LiContent>);
 
 #[derive(Debug, PartialEq)]
 struct Pre(String);
@@ -78,6 +67,7 @@ struct Lexer {
     input: Vec<char>,
     position: usize,
     output: Vec<RootTags>,
+    indent: usize,
 }
 
 impl Lexer {
@@ -128,6 +118,7 @@ fn tokenize(input: &str) -> Vec<RootTags> {
         input: input.chars().collect(),
         position: 0,
         output: Vec::new(),
+        indent: 0,
     };
 
     while lexer.position < lexer.input.len() {
@@ -151,14 +142,28 @@ fn tokenize(input: &str) -> Vec<RootTags> {
                     lexer.output.push(RootTags::H1(H1(text)));
                 }
             }
+            '-' => {
+                lexer.next_char();
+                lexer.skip_whitespace();
+                let text = lexer.read_to_eol();
+                lexer.output.push(RootTags::Li(Li {
+                    indent: lexer.indent,
+                    content: Contents::Text(Text(text)),
+                }));
+            }
+            '\t' | ' ' => {
+                lexer.indent += 1;
+                lexer.next_char();
+            }
             '\n' => {
+                lexer.indent = 0;
                 lexer.next_char();
             }
             _ => {
                 let text = lexer.read_to_eol();
                 lexer
                     .output
-                    .push(RootTags::P(P(vec![PContent::Text(Text(text))])))
+                    .push(RootTags::P(P(vec![Contents::Text(Text(text))])))
             }
         }
     }
@@ -170,7 +175,7 @@ fn tokenize(input: &str) -> Vec<RootTags> {
 mod tests {
     use crate::lexer::tokenize;
 
-    use super::{PContent, RootTags, Text, H1, H2, H3, P};
+    use super::{Contents, Li, RootTags, Text, H1, H2, H3, P};
 
     #[test]
     fn test_parse() {
@@ -192,7 +197,7 @@ mod tests {
             ),
             (
                 "段落\n",
-                vec![RootTags::P(P(vec![PContent::Text(Text(
+                vec![RootTags::P(P(vec![Contents::Text(Text(
                     "段落".to_string(),
                 ))]))],
             ),
@@ -208,7 +213,121 @@ mod tests {
                     RootTags::H1(H1("見出し1".to_string())),
                     RootTags::H2(H2("見出し2".to_string())),
                     RootTags::H3(H3("見出し3".to_string())),
-                    RootTags::P(P(vec![PContent::Text(Text("段落".to_string()))])),
+                    RootTags::P(P(vec![Contents::Text(Text("段落".to_string()))])),
+                ],
+            ),
+            (
+                "- リスト",
+                vec![RootTags::Li(Li {
+                    indent: 0,
+                    content: Contents::Text(Text("リスト".to_string())),
+                })],
+            ),
+            (
+                "- リスト1
+- リスト2",
+                vec![
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                ],
+            ),
+            (
+                "- リスト1
+- リスト2
+\t- リスト2-1
+\t- リスト2-2
+",
+                vec![
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 1,
+                        content: Contents::Text(Text("リスト2-1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 1,
+                        content: Contents::Text(Text("リスト2-2".to_string())),
+                    }),
+                ],
+            ),
+            (
+                "- リスト1
+- リスト2
+  - リスト2-1
+    - リスト2-1-1
+  - リスト2-2
+- リスト3
+",
+                vec![
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 2,
+                        content: Contents::Text(Text("リスト2-1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 4,
+                        content: Contents::Text(Text("リスト2-1-1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 2,
+                        content: Contents::Text(Text("リスト2-2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト3".to_string())),
+                    }),
+                ],
+            ),
+            (
+                "# 見出し1
+## 見出し2
+
+段落1
+段落2
+
+- リスト1
+- リスト2
+- リスト3
+
+段落3
+",
+                vec![
+                    RootTags::H1(H1("見出し1".to_string())),
+                    RootTags::H2(H2("見出し2".to_string())),
+                    RootTags::P(P(vec![Contents::Text(Text("段落1".to_string()))])),
+                    RootTags::P(P(vec![Contents::Text(Text("段落2".to_string()))])),
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        indent: 0,
+                        content: Contents::Text(Text("リスト3".to_string())),
+                    }),
+                    RootTags::P(P(vec![Contents::Text(Text("段落3".to_string()))])),
                 ],
             ),
         ];
