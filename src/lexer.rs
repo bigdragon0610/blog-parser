@@ -1,5 +1,5 @@
 #[derive(Debug, PartialEq)]
-enum RootTags {
+pub enum RootTags {
     H1(H1),
     H2(H2),
     H3(H3),
@@ -11,19 +11,19 @@ enum RootTags {
 }
 
 #[derive(Debug, PartialEq)]
-struct H1(String);
+pub struct H1(pub String);
 
 #[derive(Debug, PartialEq)]
-struct H2(String);
+pub struct H2(pub String);
 
 #[derive(Debug, PartialEq)]
-struct H3(String);
+pub struct H3(pub String);
 
 #[derive(Debug, PartialEq)]
-struct P(Vec<Contents>);
+pub struct P(pub Vec<Contents>);
 
 #[derive(Debug, PartialEq)]
-enum Contents {
+pub enum Contents {
     Text(Text),
     Strong(Strong),
     Em(Em),
@@ -31,7 +31,7 @@ enum Contents {
 }
 
 #[derive(Debug, PartialEq)]
-struct Text(String);
+pub struct Text(pub String);
 
 #[derive(Debug, PartialEq)]
 struct Strong(String);
@@ -55,7 +55,7 @@ struct Img {
 }
 
 #[derive(Debug, PartialEq)]
-struct Li {
+pub struct Li {
     list_type: ListTypes,
     indent: usize,
     content: Contents,
@@ -70,7 +70,7 @@ enum ListTypes {
 #[derive(Debug, PartialEq)]
 struct Pre(String);
 
-struct Lexer {
+pub struct Lexer {
     input: Vec<char>,
     position: usize,
     output: Vec<RootTags>,
@@ -204,7 +204,7 @@ mod tests {
     use super::{Contents, Li, ListTypes, RootTags, Text, H1, H2, H3, P};
 
     #[test]
-    fn test_parse() {
+    fn test_tokenize() {
         let tests = [
             ("# 見出し1", vec![RootTags::H1(H1("見出し1".to_string()))]),
             ("## 見出し2", vec![RootTags::H2(H2("見出し2".to_string()))]),
