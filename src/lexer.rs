@@ -56,8 +56,15 @@ struct Img {
 
 #[derive(Debug, PartialEq)]
 struct Li {
+    list_type: ListTypes,
     indent: usize,
     content: Contents,
+}
+
+#[derive(Debug, PartialEq)]
+enum ListTypes {
+    Ul,
+    Ol,
 }
 
 #[derive(Debug, PartialEq)]
@@ -147,9 +154,28 @@ fn tokenize(input: &str) -> Vec<RootTags> {
                 lexer.skip_whitespace();
                 let text = lexer.read_to_eol();
                 lexer.output.push(RootTags::Li(Li {
+                    list_type: ListTypes::Ul,
                     indent: lexer.indent,
                     content: Contents::Text(Text(text)),
                 }));
+            }
+            '1' => {
+                if lexer.peek_char() == Some('.') {
+                    lexer.next_char();
+                    lexer.next_char();
+                    lexer.skip_whitespace();
+                    let text = lexer.read_to_eol();
+                    lexer.output.push(RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: lexer.indent,
+                        content: Contents::Text(Text(text)),
+                    }));
+                } else {
+                    let text = lexer.read_to_eol();
+                    lexer
+                        .output
+                        .push(RootTags::P(P(vec![Contents::Text(Text(text))])))
+                }
             }
             '\t' | ' ' => {
                 lexer.indent += 1;
@@ -175,7 +201,7 @@ fn tokenize(input: &str) -> Vec<RootTags> {
 mod tests {
     use crate::lexer::tokenize;
 
-    use super::{Contents, Li, RootTags, Text, H1, H2, H3, P};
+    use super::{Contents, Li, ListTypes, RootTags, Text, H1, H2, H3, P};
 
     #[test]
     fn test_parse() {
@@ -219,6 +245,7 @@ mod tests {
             (
                 "- リスト",
                 vec![RootTags::Li(Li {
+                    list_type: ListTypes::Ul,
                     indent: 0,
                     content: Contents::Text(Text("リスト".to_string())),
                 })],
@@ -228,10 +255,12 @@ mod tests {
 - リスト2",
                 vec![
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト1".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト2".to_string())),
                     }),
@@ -245,18 +274,22 @@ mod tests {
 ",
                 vec![
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト1".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト2".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 1,
                         content: Contents::Text(Text("リスト2-1".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 1,
                         content: Contents::Text(Text("リスト2-2".to_string())),
                     }),
@@ -272,26 +305,32 @@ mod tests {
 ",
                 vec![
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト1".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト2".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 2,
                         content: Contents::Text(Text("リスト2-1".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 4,
                         content: Contents::Text(Text("リスト2-1-1".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 2,
                         content: Contents::Text(Text("リスト2-2".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト3".to_string())),
                     }),
@@ -316,14 +355,172 @@ mod tests {
                     RootTags::P(P(vec![Contents::Text(Text("段落1".to_string()))])),
                     RootTags::P(P(vec![Contents::Text(Text("段落2".to_string()))])),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト1".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト2".to_string())),
                     }),
                     RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト3".to_string())),
+                    }),
+                    RootTags::P(P(vec![Contents::Text(Text("段落3".to_string()))])),
+                ],
+            ),
+            (
+                "1. リスト",
+                vec![RootTags::Li(Li {
+                    list_type: ListTypes::Ol,
+                    indent: 0,
+                    content: Contents::Text(Text("リスト".to_string())),
+                })],
+            ),
+            (
+                "1リストではない段落",
+                vec![RootTags::P(P(vec![Contents::Text(Text(
+                    "1リストではない段落".to_string(),
+                ))]))],
+            ),
+            (
+                "1. リスト1
+1. リスト2",
+                vec![
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                ],
+            ),
+            (
+                "1. リスト1
+1. リスト2
+\t1. リスト2-1
+\t1. リスト2-2
+",
+                vec![
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 1,
+                        content: Contents::Text(Text("リスト2-1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 1,
+                        content: Contents::Text(Text("リスト2-2".to_string())),
+                    }),
+                ],
+            ),
+            (
+                "1. リスト1
+1. リスト2
+  1. リスト2-1
+    1. リスト2-1-1
+  1. リスト2-2
+1. リスト3
+",
+                vec![
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 2,
+                        content: Contents::Text(Text("リスト2-1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 4,
+                        content: Contents::Text(Text("リスト2-1-1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 2,
+                        content: Contents::Text(Text("リスト2-2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト3".to_string())),
+                    }),
+                ],
+            ),
+            (
+                "# 見出し1
+## 見出し2
+
+段落1
+段落2
+
+1. リスト1
+1. リスト2
+1. リスト3
+
+- リスト1
+- リスト2
+- リスト3
+
+段落3
+",
+                vec![
+                    RootTags::H1(H1("見出し1".to_string())),
+                    RootTags::H2(H2("見出し2".to_string())),
+                    RootTags::P(P(vec![Contents::Text(Text("段落1".to_string()))])),
+                    RootTags::P(P(vec![Contents::Text(Text("段落2".to_string()))])),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ol,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト3".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト1".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
+                        indent: 0,
+                        content: Contents::Text(Text("リスト2".to_string())),
+                    }),
+                    RootTags::Li(Li {
+                        list_type: ListTypes::Ul,
                         indent: 0,
                         content: Contents::Text(Text("リスト3".to_string())),
                     }),
