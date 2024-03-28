@@ -1,13 +1,18 @@
-use crate::lexer::{Contents, RootTags};
+use crate::lexer::{Code, Contents, Em, ListTypes, RootTags, Strong, Text};
 
 struct Parser {
     html: String,
 }
 
 impl Parser {
-    fn push_html(&mut self, tag_name: &str, content: &str) {
-        self.html
-            .push_str(&format!("<{}>{}</{}>\n", tag_name, content, tag_name));
+    fn push_html(&mut self, tag_name: &str, content: &str, new_line: bool) {
+        self.html.push_str(&format!(
+            "<{}>{}</{}>{}",
+            tag_name,
+            content,
+            tag_name,
+            if new_line { "\n" } else { "" }
+        ));
     }
 }
 
@@ -18,9 +23,9 @@ fn parse(tags: Vec<RootTags>) -> String {
 
     for (i, tag) in tags.iter().enumerate() {
         match tag {
-            RootTags::H1(h1) => parser.push_html("h1", &h1.0),
-            RootTags::H2(h2) => parser.push_html("h2", &h2.0),
-            RootTags::H3(h3) => parser.push_html("h3", &h3.0),
+            RootTags::H1(h1) => parser.push_html("h1", &h1.0, true),
+            RootTags::H2(h2) => parser.push_html("h2", &h2.0, true),
+            RootTags::H3(h3) => parser.push_html("h3", &h3.0, true),
             RootTags::P(p) => {
                 let mut p_contents = String::new();
                 for content in &p.0 {
@@ -29,7 +34,73 @@ fn parse(tags: Vec<RootTags>) -> String {
                         _ => panic!(),
                     }
                 }
-                parser.push_html("p", &p_contents)
+                parser.push_html("p", &p_contents, true)
+            }
+            RootTags::Li(lists) => {
+                let mut stack = Vec::<(usize, ListTypes)>::new();
+                stack.push((lists[0].indent, lists[0].list_type));
+                parser.html.push_str(&format!(
+                    "<{}>\n<li>{}",
+                    lists[0].list_type.to_string(),
+                    lists[0]
+                        .contents
+                        .iter()
+                        .fold(String::new(), |mut acc, content| {
+                            acc += match content {
+                                Contents::Text(Text(text)) => text,
+                                _ => "",
+                            };
+                            acc
+                        })
+                ));
+
+                for li in lists.iter().skip(1) {
+                    while let Some(&(indent, list_type)) = stack.last() {
+                        match indent.cmp(&li.indent) {
+                            std::cmp::Ordering::Equal => {
+                                parser.html.push_str("</li>\n");
+                                break;
+                            }
+                            std::cmp::Ordering::Less => {
+                                parser.html.push_str(&format!(
+                                    "\n{}<{}>\n",
+                                    "\t".repeat(li.indent),
+                                    li.list_type.to_string(),
+                                ));
+                                stack.push((li.indent, li.list_type));
+                                break;
+                            }
+                            std::cmp::Ordering::Greater => {
+                                stack.pop();
+                                let &(second_last_indent, _) = stack.last().unwrap();
+                                parser.html.push_str(&format!(
+                                    "</li>\n{}</{}>\n{}",
+                                    "\t".repeat(indent),
+                                    list_type.to_string(),
+                                    "\t".repeat(second_last_indent)
+                                ));
+                            }
+                        }
+                    }
+                    parser.html.push_str(&format!(
+                        "{}<li>{}",
+                        "\t".repeat(li.indent),
+                        li.contents.iter().fold(String::new(), |mut acc, content| {
+                            acc += match content {
+                                Contents::Text(Text(text)) => text,
+                                _ => "",
+                            };
+                            acc
+                        })
+                    ))
+                }
+                while let Some((indent, list_type)) = stack.pop() {
+                    parser.html.push_str(&format!(
+                        "</li>\n{}</{}>\n",
+                        "\t".repeat(indent),
+                        list_type.to_string()
+                    ));
+                }
             }
             _ => panic!(),
         }
@@ -41,7 +112,7 @@ fn parse(tags: Vec<RootTags>) -> String {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lexer::{Contents, RootTags, Text, H1, H2, H3, P},
+        lexer::{Contents, Li, ListTypes, RootTags, Text, H1, H2, H3, P},
         parser::parse,
     };
 
@@ -67,16 +138,145 @@ mod tests {
                 "<p>段落</p>\n",
             ),
             (
+                vec![RootTags::Li(vec![Li {
+                    list_type: ListTypes::Ul,
+                    indent: 0,
+                    contents: vec![Contents::Text(Text("リスト".to_string()))],
+                }])],
+                "<ul>\n<li>リスト</li>\n</ul>\n",
+            ),
+            (
+                vec![RootTags::Li(vec![Li {
+                    list_type: ListTypes::Ol,
+                    indent: 0,
+                    contents: vec![Contents::Text(Text("リスト".to_string()))],
+                }])],
+                "<ol>\n<li>リスト</li>\n</ol>\n",
+            ),
+            (
+                vec![RootTags::Li(vec![Li {
+                    list_type: ListTypes::Ol,
+                    indent: 0,
+                    contents: vec![Contents::Text(Text("リスト".to_string()))],
+                }])],
+                "<ol>\n<li>リスト</li>\n</ol>\n",
+            ),
+            (
+                vec![RootTags::Li(vec![
+                    Li {
+                        list_type: ListTypes::Ul,
+                        indent: 0,
+                        contents: vec![Contents::Text(Text("リスト1".to_string()))],
+                    },
+                    Li {
+                        list_type: ListTypes::Ul,
+                        indent: 1,
+                        contents: vec![Contents::Text(Text("リスト1-1".to_string()))],
+                    },
+                    Li {
+                        list_type: ListTypes::Ul,
+                        indent: 1,
+                        contents: vec![Contents::Text(Text("リスト1-2".to_string()))],
+                    },
+                    Li {
+                        list_type: ListTypes::Ul,
+                        indent: 0,
+                        contents: vec![Contents::Text(Text("リスト2".to_string()))],
+                    },
+                    Li {
+                        list_type: ListTypes::Ol,
+                        indent: 1,
+                        contents: vec![Contents::Text(Text("リスト2-1".to_string()))],
+                    },
+                    Li {
+                        list_type: ListTypes::Ol,
+                        indent: 1,
+                        contents: vec![Contents::Text(Text("リスト2-2".to_string()))],
+                    },
+                ])],
+                "<ul>
+<li>リスト1
+\t<ul>
+\t<li>リスト1-1</li>
+\t<li>リスト1-2</li>
+\t</ul>
+</li>
+<li>リスト2
+\t<ol>
+\t<li>リスト2-1</li>
+\t<li>リスト2-2</li>
+\t</ol>
+</li>
+</ul>
+",
+            ),
+            (
                 vec![
                     RootTags::H1(H1("見出し1".to_string())),
                     RootTags::H2(H2("見出し2".to_string())),
+                    RootTags::P(P(vec![Contents::Text(Text("段落1".to_string()))])),
                     RootTags::H3(H3("見出し3".to_string())),
-                    RootTags::P(P(vec![Contents::Text(Text("段落".to_string()))])),
+                    RootTags::P(P(vec![Contents::Text(Text("段落2".to_string()))])),
+                    RootTags::Li(vec![
+                        Li {
+                            list_type: ListTypes::Ul,
+                            indent: 0,
+                            contents: vec![Contents::Text(Text("リスト1".to_string()))],
+                        },
+                        Li {
+                            list_type: ListTypes::Ul,
+                            indent: 0,
+                            contents: vec![Contents::Text(Text("リスト2".to_string()))],
+                        },
+                        Li {
+                            list_type: ListTypes::Ul,
+                            indent: 1,
+                            contents: vec![Contents::Text(Text("リスト2-1".to_string()))],
+                        },
+                        Li {
+                            list_type: ListTypes::Ul,
+                            indent: 1,
+                            contents: vec![Contents::Text(Text("リスト2-2".to_string()))],
+                        },
+                        Li {
+                            list_type: ListTypes::Ul,
+                            indent: 2,
+                            contents: vec![Contents::Text(Text("リスト2-2-1".to_string()))],
+                        },
+                        Li {
+                            list_type: ListTypes::Ul,
+                            indent: 1,
+                            contents: vec![Contents::Text(Text("リスト2-3".to_string()))],
+                        },
+                        Li {
+                            list_type: ListTypes::Ul,
+                            indent: 0,
+                            contents: vec![Contents::Text(Text("リスト3".to_string()))],
+                        },
+                    ]),
+                    RootTags::P(P(vec![Contents::Text(Text("段落3".to_string()))])),
                 ],
                 "<h1>見出し1</h1>
 <h2>見出し2</h2>
+<p>段落1</p>
 <h3>見出し3</h3>
-<p>段落</p>
+<p>段落2</p>
+<ul>
+<li>リスト1</li>
+<li>リスト2
+\t<ul>
+\t<li>リスト2-1</li>
+\t<li>リスト2-2
+\t\t<ul>
+\t\t<li>リスト2-2-1</li>
+\t\t</ul>
+\t</li>
+\t<li>リスト2-3</li>
+\t</ul>
+</li>
+<li>リスト3</li>
+</ul>
+<p>段落3</p>
 ",
             ),
         ];
