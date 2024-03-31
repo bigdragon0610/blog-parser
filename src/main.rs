@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::env::args;
+use std::{collections::VecDeque, env::args};
 
 use crate::{lexer::tokenize, parser::parse, view::view};
 
@@ -31,12 +31,12 @@ fn main() {
         .replace("</h1>", "");
     let date = chrono::Local::now().format("%Y-%m-%d").to_string();
 
-    let mut data: Vec<Data> =
+    let mut data: VecDeque<Data> =
         serde_json::from_str(std::fs::read_to_string(&args[3]).unwrap().as_str()).unwrap();
     if let Some(article) = data.iter_mut().find(|data| data.slug == args[4]) {
         article.title = title.clone();
     } else {
-        data.push(Data {
+        data.push_front(Data {
             slug: args[4].clone(),
             title: title.clone(),
             created_at: date.clone(),
