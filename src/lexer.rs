@@ -129,7 +129,7 @@ impl Lexer {
     }
 }
 
-fn tokenize(input: &str) -> Vec<RootTags> {
+pub fn tokenize(input: &str) -> Vec<RootTags> {
     let mut lexer = Lexer {
         input: input.chars().collect(),
         position: 0,

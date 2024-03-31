@@ -16,12 +16,12 @@ impl Parser {
     }
 }
 
-fn parse(tags: Vec<RootTags>) -> String {
+pub fn parse(tags: Vec<RootTags>) -> String {
     let mut parser = Parser {
         html: String::new(),
     };
 
-    for (i, tag) in tags.iter().enumerate() {
+    for tag in tags {
         match tag {
             RootTags::H1(h1) => parser.push_html("h1", &h1.0, true),
             RootTags::H2(h2) => parser.push_html("h2", &h2.0, true),
