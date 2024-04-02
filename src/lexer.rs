@@ -77,7 +77,7 @@ impl ListTypes {
 }
 
 #[derive(Debug, PartialEq)]
-struct Pre(String);
+pub struct Pre(pub String);
 
 pub struct Lexer {
     input: Vec<char>,
@@ -206,9 +206,23 @@ pub fn tokenize(input: &str) -> Vec<RootTags> {
             }
             _ => {
                 let text = lexer.read_to_eol();
-                lexer
-                    .output
-                    .push(RootTags::P(P(vec![Contents::Text(Text(text))])))
+                if text.starts_with("```") {
+                    let mut code = String::new();
+                    lexer.next_char();
+                    loop {
+                        let row = lexer.read_to_eol();
+                        lexer.next_char();
+                        if row.ends_with("```") {
+                            break;
+                        }
+                        code.push_str(&(row + "\n"));
+                    }
+                    lexer.output.push(RootTags::Pre(Pre(code)));
+                } else {
+                    lexer
+                        .output
+                        .push(RootTags::P(P(vec![Contents::Text(Text(text))])))
+                }
             }
         }
     }
@@ -220,7 +234,7 @@ pub fn tokenize(input: &str) -> Vec<RootTags> {
 mod tests {
     use crate::lexer::tokenize;
 
-    use super::{Contents, Li, ListTypes, RootTags, Text, H1, H2, H3, P};
+    use super::{Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P};
 
     #[test]
     fn test_tokenize() {
@@ -354,6 +368,26 @@ mod tests {
                         contents: vec![Contents::Text(Text("リスト3".to_string()))],
                     },
                 ])],
+            ),
+            (
+                "```
+console.log('Hello, world!');
+```
+",
+                vec![RootTags::Pre(Pre(
+                    "console.log('Hello, world!');\n".to_string()
+                ))],
+            ),
+            (
+                "```
+const a = 1;
+const b = 2;
+add(a, b);
+```
+",
+                vec![RootTags::Pre(Pre(
+                    "const a = 1;\nconst b = 2;\nadd(a, b);\n".to_string(),
+                ))],
             ),
             (
                 "# 見出し1
@@ -498,15 +532,27 @@ mod tests {
 ## 見出し2
 
 段落1
+
+```
+console.log('Hello, world!');
+```
+
 段落2
+
+```
+console.log('Hello, world!');
+```
 
 1. リスト1
 1. リスト2
 1. リスト3
-
 - リスト1
 - リスト2
 - リスト3
+
+```
+console.log('Hello, world!');
+```
 
 段落3
 ",
@@ -514,7 +560,9 @@ mod tests {
                     RootTags::H1(H1("見出し1".to_string())),
                     RootTags::H2(H2("見出し2".to_string())),
                     RootTags::P(P(vec![Contents::Text(Text("段落1".to_string()))])),
+                    RootTags::Pre(Pre("console.log('Hello, world!');\n".to_string())),
                     RootTags::P(P(vec![Contents::Text(Text("段落2".to_string()))])),
+                    RootTags::Pre(Pre("console.log('Hello, world!');\n".to_string())),
                     RootTags::Li(vec![
                         Li {
                             list_type: ListTypes::Ol,
@@ -547,6 +595,7 @@ mod tests {
                             contents: vec![Contents::Text(Text("リスト3".to_string()))],
                         },
                     ]),
+                    RootTags::Pre(Pre("console.log('Hello, world!');\n".to_string())),
                     RootTags::P(P(vec![Contents::Text(Text("段落3".to_string()))])),
                 ],
             ),

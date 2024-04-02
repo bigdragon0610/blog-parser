@@ -102,6 +102,9 @@ pub fn parse(tags: Vec<RootTags>) -> String {
                     ));
                 }
             }
+            RootTags::Pre(pre) => parser
+                .html
+                .push_str(&format!("<pre><code>{}</code></pre>\n", pre.0)),
             _ => panic!(),
         }
     }
@@ -112,7 +115,7 @@ pub fn parse(tags: Vec<RootTags>) -> String {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lexer::{Contents, Li, ListTypes, RootTags, Text, H1, H2, H3, P},
+        lexer::{Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P},
         parser::parse,
     };
 
@@ -160,6 +163,22 @@ mod tests {
                     contents: vec![Contents::Text(Text("リスト".to_string()))],
                 }])],
                 "<ol>\n<li>リスト</li>\n</ol>\n",
+            ),
+            (
+                vec![RootTags::Pre(Pre(
+                    "console.log('Hello, world!');\n".to_string()
+                ))],
+                "<pre><code>console.log('Hello, world!');\n</code></pre>\n",
+            ),
+            (
+                vec![RootTags::Pre(Pre(
+                    "const a = 1;\nconst b = 2;\nadd(a, b);\n".to_string(),
+                ))],
+                "<pre><code>const a = 1;
+const b = 2;
+add(a, b);
+</code></pre>
+",
             ),
             (
                 vec![RootTags::Li(vec![
@@ -217,6 +236,7 @@ mod tests {
                     RootTags::P(P(vec![Contents::Text(Text("段落1".to_string()))])),
                     RootTags::H3(H3("見出し3".to_string())),
                     RootTags::P(P(vec![Contents::Text(Text("段落2".to_string()))])),
+                    RootTags::Pre(Pre("console.log('Hello, world!');\n".to_string())),
                     RootTags::Li(vec![
                         Li {
                             list_type: ListTypes::Ul,
@@ -254,6 +274,7 @@ mod tests {
                             contents: vec![Contents::Text(Text("リスト3".to_string()))],
                         },
                     ]),
+                    RootTags::Pre(Pre("console.log('Hello, world!');\n".to_string())),
                     RootTags::P(P(vec![Contents::Text(Text("段落3".to_string()))])),
                 ],
                 "<h1>見出し1</h1>
@@ -261,6 +282,8 @@ mod tests {
 <p>段落1</p>
 <h3>見出し3</h3>
 <p>段落2</p>
+<pre><code>console.log('Hello, world!');
+</code></pre>
 <ul>
 <li>リスト1</li>
 <li>リスト2
@@ -276,6 +299,8 @@ mod tests {
 </li>
 <li>リスト3</li>
 </ul>
+<pre><code>console.log('Hello, world!');
+</code></pre>
 <p>段落3</p>
 ",
             ),
