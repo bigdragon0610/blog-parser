@@ -29,13 +29,15 @@ fn main() {
         .unwrap()
         .replace("<h1>", "")
         .replace("</h1>", "");
-    let date = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     let mut data: VecDeque<Data> =
         serde_json::from_str(std::fs::read_to_string(&args[3]).unwrap().as_str()).unwrap();
+    let date;
     if let Some(article) = data.iter_mut().find(|data| data.slug == args[4]) {
         article.title = title.clone();
+        date = article.created_at.clone();
     } else {
+        date = chrono::Local::now().format("%Y-%m-%d").to_string();
         data.push_front(Data {
             slug: args[4].clone(),
             title: title.clone(),
