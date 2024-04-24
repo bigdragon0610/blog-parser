@@ -22,7 +22,14 @@ fn main() {
             args[0]
         );
     }
-    let content = parse(tokenize(&args[1]));
+
+    let Params {
+        description,
+        skip_cnt,
+    } = parse_params(&args[1]);
+
+    let content = parse(tokenize(&args[1][skip_cnt..]));
+
     let title = content
         .lines()
         .next()
@@ -47,6 +54,35 @@ fn main() {
     std::fs::write(&args[3], serde_json::to_string_pretty(&data).unwrap()).unwrap();
 
     let mut html = view(&args[2]);
-    compact!(html, title, content, date);
+    compact!(html, title, content, date, description);
     print!("{}", html);
+}
+
+struct Params<'a> {
+    description: &'a str,
+    skip_cnt: usize,
+}
+
+fn parse_params(markdown: &str) -> Params<'_> {
+    let mut description = "";
+    let mut skip_cnt = 0;
+    let mut cnt = 0;
+    for line in markdown.lines() {
+        skip_cnt += line.len() + 1;
+        if line.starts_with("---") {
+            cnt += 1;
+            if cnt == 2 {
+                break;
+            }
+        } else if line.starts_with("description:") {
+            description = line.trim_start_matches("description:").trim();
+        }
+    }
+    if description.is_empty() {
+        panic!("description not found in markdown");
+    }
+    Params {
+        description,
+        skip_cnt,
+    }
 }
