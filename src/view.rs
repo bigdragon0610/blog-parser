@@ -15,5 +15,5 @@ macro_rules! compact {
 }
 
 pub fn view(file_path: &str) -> String {
-    fs::read_to_string(format!("{}", file_path)).expect("Something went wrong reading the file")
+    fs::read_to_string(file_path).expect("Something went wrong reading the file")
 }
