@@ -9,7 +9,8 @@ macro_rules! compact {
     $(
       let re_string = format!(r"\{{\{{\s*\${}\s*\}}\}}", stringify!($x));
       let re = $crate::view::__export::Regex::new(&re_string).unwrap();
-      $content = re.replace_all(&$content, $x).into_owned();
+      let escaped = $x.replace("$", "$$"); // 置換文字列の$は特殊文字
+      $content = re.replace_all(&$content, escaped).into_owned();
     )*
 };
 }
