@@ -31,6 +31,9 @@ pub fn parse(tags: Vec<RootTags>) -> String {
                 for content in &p.0 {
                     match content {
                         Contents::Text(text) => p_contents.push_str(&text.0),
+                        Contents::Code(code) => {
+                            p_contents.push_str(&format!("<code>{}</code>", code.0))
+                        }
                         _ => panic!(),
                     }
                 }
@@ -115,13 +118,20 @@ pub fn parse(tags: Vec<RootTags>) -> String {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lexer::{Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P},
+        lexer::{Code, Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P},
         parser::parse,
     };
 
     #[test]
     fn test_parse() {
         let tests = [
+            (
+                vec![RootTags::P(P(vec![
+                    Contents::Text(Text("テキスト".to_string())),
+                    Contents::Code(Code("コード".to_string())),
+                ]))],
+                "<p>テキスト<code>コード</code></p>\n",
+            ),
             (
                 vec![RootTags::H1(H1("見出し1".to_string()))],
                 "<h1>見出し1</h1>\n",

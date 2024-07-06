@@ -219,9 +219,30 @@ pub fn tokenize(input: &str) -> Vec<RootTags> {
                     }
                     lexer.output.push(RootTags::Pre(Pre(code)));
                 } else {
-                    lexer
-                        .output
-                        .push(RootTags::P(P(vec![Contents::Text(Text(text))])))
+                    let mut p_contents = Vec::<Contents>::new();
+                    let mut text = text.chars();
+                    while let Some(c) = text.next() {
+                        match c {
+                            '`' => {
+                                let mut code = Code(String::new());
+                                while let Some(c) = text.next() {
+                                    if c == '`' {
+                                        break;
+                                    }
+                                    code.0.push(c);
+                                }
+                                p_contents.push(Contents::Code(code));
+                            }
+                            _ => {
+                                if let Some(Contents::Text(text)) = p_contents.last_mut() {
+                                    text.0.push(c);
+                                } else {
+                                    p_contents.push(Contents::Text(Text(c.to_string())));
+                                }
+                            }
+                        }
+                    }
+                    lexer.output.push(RootTags::P(P(p_contents)));
                 }
             }
         }
@@ -234,11 +255,18 @@ pub fn tokenize(input: &str) -> Vec<RootTags> {
 mod tests {
     use crate::lexer::tokenize;
 
-    use super::{Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P};
+    use super::{Code, Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P};
 
     #[test]
     fn test_tokenize() {
         let tests = [
+            (
+                "テキスト`コード`",
+                vec![RootTags::P(P(vec![
+                    Contents::Text(Text("テキスト".to_string())),
+                    Contents::Code(Code("コード".to_string())),
+                ]))],
+            ),
             ("# 見出し1", vec![RootTags::H1(H1("見出し1".to_string()))]),
             ("## 見出し2", vec![RootTags::H2(H2("見出し2".to_string()))]),
             ("### 見出し3", vec![RootTags::H3(H3("見出し3".to_string()))]),
