@@ -25,8 +25,8 @@ pub struct P(pub Vec<Contents>);
 #[derive(Debug, PartialEq)]
 pub enum Contents {
     Text(Text),
-    Strong(Strong),
-    Em(Em),
+    Bold(Bold),
+    Italic(Italic),
     Code(Code),
 }
 
@@ -34,10 +34,10 @@ pub enum Contents {
 pub struct Text(pub String);
 
 #[derive(Debug, PartialEq)]
-pub struct Strong(pub String);
+pub struct Bold(pub String);
 
 #[derive(Debug, PartialEq)]
-pub struct Em(pub String);
+pub struct Italic(pub String);
 
 #[derive(Debug, PartialEq)]
 pub struct Code(pub String);

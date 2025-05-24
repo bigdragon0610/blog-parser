@@ -1,4 +1,4 @@
-use crate::lexer::{Code, Contents, Em, ListTypes, RootTags, Strong, Text};
+use crate::lexer::{Contents, ListTypes, RootTags, Text};
 
 struct Parser {
     html: String,
