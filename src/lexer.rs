@@ -140,62 +140,11 @@ pub fn tokenize(input: &str) -> Vec<RootTags> {
     while lexer.position < lexer.input.len() {
         let c = lexer.current_char();
         match c {
-            '#' => {
-                if Some('#') == lexer.next_char() {
-                    if Some('#') == lexer.next_char() {
-                        lexer.next_char();
-                        lexer.skip_whitespace();
-                        let text = lexer.read_to_eol();
-                        lexer.output.push(RootTags::H3(H3(text)));
-                    } else {
-                        lexer.skip_whitespace();
-                        let text = lexer.read_to_eol();
-                        lexer.output.push(RootTags::H2(H2(text)));
-                    }
-                } else {
-                    lexer.skip_whitespace();
-                    let text = lexer.read_to_eol();
-                    lexer.output.push(RootTags::H1(H1(text)));
-                }
-            }
-            '-' => {
-                lexer.next_char();
-                lexer.skip_whitespace();
-                let text = lexer.read_to_eol();
-                let next_li = Li {
-                    list_type: ListTypes::Ul,
-                    indent: lexer.indent,
-                    contents: vec![Contents::Text(Text(text))],
-                };
-                if let Some(RootTags::Li(lists)) = lexer.output.last_mut() {
-                    lists.push(next_li);
-                } else {
-                    lexer.output.push(RootTags::Li(vec![next_li]));
-                }
-            }
-            '1' => {
-                if lexer.peek_char() == Some('.') {
-                    lexer.next_char();
-                    lexer.next_char();
-                    lexer.skip_whitespace();
-                    let text = lexer.read_to_eol();
-                    let next_li = Li {
-                        list_type: ListTypes::Ol,
-                        indent: lexer.indent,
-                        contents: vec![Contents::Text(Text(text))],
-                    };
-                    if let Some(RootTags::Li(lists)) = lexer.output.last_mut() {
-                        lists.push(next_li);
-                    } else {
-                        lexer.output.push(RootTags::Li(vec![next_li]));
-                    }
-                } else {
-                    let text = lexer.read_to_eol();
-                    lexer
-                        .output
-                        .push(RootTags::P(P(vec![Contents::Text(Text(text))])))
-                }
-            }
+            '#' => tokenize_heading(&mut lexer),
+
+            '-' => tokenize_list(&mut lexer),
+
+            '1' => tokenize_ordered_list(&mut lexer),
             '\t' | ' ' => {
                 lexer.indent += 1;
                 lexer.next_char();
@@ -207,48 +156,115 @@ pub fn tokenize(input: &str) -> Vec<RootTags> {
             _ => {
                 let text = lexer.read_to_eol();
                 if text.starts_with("```") {
-                    let mut code = String::new();
-                    lexer.next_char();
-                    loop {
-                        let row = lexer.read_to_eol();
-                        lexer.next_char();
-                        if row.ends_with("```") {
-                            break;
-                        }
-                        code.push_str(&(row + "\n"));
-                    }
-                    lexer.output.push(RootTags::Pre(Pre(code)));
+                    tokenize_codeblock(&mut lexer);
                 } else {
-                    let mut p_contents = Vec::<Contents>::new();
-                    let mut text = text.chars();
-                    while let Some(c) = text.next() {
-                        match c {
-                            '`' => {
-                                let mut code = Code(String::new());
-                                while let Some(c) = text.next() {
-                                    if c == '`' {
-                                        break;
-                                    }
-                                    code.0.push(c);
-                                }
-                                p_contents.push(Contents::Code(code));
-                            }
-                            _ => {
-                                if let Some(Contents::Text(text)) = p_contents.last_mut() {
-                                    text.0.push(c);
-                                } else {
-                                    p_contents.push(Contents::Text(Text(c.to_string())));
-                                }
-                            }
-                        }
-                    }
-                    lexer.output.push(RootTags::P(P(p_contents)));
+                    tokenize_p_contents(&text, &mut lexer);
                 }
             }
         }
     }
 
     lexer.output
+}
+
+fn tokenize_heading(lexer: &mut Lexer) {
+    if Some('#') == lexer.next_char() {
+        if Some('#') == lexer.next_char() {
+            lexer.next_char();
+            lexer.skip_whitespace();
+            let text = lexer.read_to_eol();
+            lexer.output.push(RootTags::H3(H3(text)));
+        } else {
+            lexer.skip_whitespace();
+            let text = lexer.read_to_eol();
+            lexer.output.push(RootTags::H2(H2(text)));
+        }
+    } else {
+        lexer.skip_whitespace();
+        let text = lexer.read_to_eol();
+        lexer.output.push(RootTags::H1(H1(text)));
+    }
+}
+
+fn tokenize_list(lexer: &mut Lexer) {
+    lexer.next_char();
+    lexer.skip_whitespace();
+    let text = lexer.read_to_eol();
+    let next_li = Li {
+        list_type: ListTypes::Ul,
+        indent: lexer.indent,
+        contents: vec![Contents::Text(Text(text))],
+    };
+    if let Some(RootTags::Li(lists)) = lexer.output.last_mut() {
+        lists.push(next_li);
+    } else {
+        lexer.output.push(RootTags::Li(vec![next_li]));
+    }
+}
+
+fn tokenize_ordered_list(lexer: &mut Lexer) {
+    if lexer.peek_char() == Some('.') {
+        lexer.next_char();
+        lexer.next_char();
+        lexer.skip_whitespace();
+        let text = lexer.read_to_eol();
+        let next_li = Li {
+            list_type: ListTypes::Ol,
+            indent: lexer.indent,
+            contents: vec![Contents::Text(Text(text))],
+        };
+        if let Some(RootTags::Li(lists)) = lexer.output.last_mut() {
+            lists.push(next_li);
+        } else {
+            lexer.output.push(RootTags::Li(vec![next_li]));
+        }
+    } else {
+        let text = lexer.read_to_eol();
+        lexer
+            .output
+            .push(RootTags::P(P(vec![Contents::Text(Text(text))])))
+    }
+}
+
+fn tokenize_codeblock(lexer: &mut Lexer) {
+    let mut code = String::new();
+    lexer.next_char();
+    loop {
+        let row = lexer.read_to_eol();
+        lexer.next_char();
+        if row.ends_with("```") {
+            break;
+        }
+        code.push_str(&(row + "\n"));
+    }
+    lexer.output.push(RootTags::Pre(Pre(code)));
+}
+
+fn tokenize_p_contents(text: &str, lexer: &mut Lexer) {
+    let mut p_contents = Vec::<Contents>::new();
+    let mut text = text.chars();
+    while let Some(c) = text.next() {
+        match c {
+            '`' => {
+                let mut code = Code(String::new());
+                while let Some(c) = text.next() {
+                    if c == '`' {
+                        break;
+                    }
+                    code.0.push(c);
+                }
+                p_contents.push(Contents::Code(code));
+            }
+            _ => {
+                if let Some(Contents::Text(text)) = p_contents.last_mut() {
+                    text.0.push(c);
+                } else {
+                    p_contents.push(Contents::Text(Text(c.to_string())));
+                }
+            }
+        }
+    }
+    lexer.output.push(RootTags::P(P(p_contents)));
 }
 
 #[cfg(test)]
