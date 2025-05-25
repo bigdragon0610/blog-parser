@@ -34,7 +34,10 @@ pub fn parse(tags: Vec<RootTags>) -> String {
                         Contents::Code(code) => {
                             p_contents.push_str(&format!("<code>{}</code>", code.0))
                         }
-                        _ => panic!(),
+                        Contents::Bold(bold) => p_contents.push_str(&format!("<b>{}</b>", bold.0)),
+                        Contents::Italic(italic) => {
+                            p_contents.push_str(&format!("<i>{}</i>", italic.0))
+                        }
                     }
                 }
                 parser.push_html("p", &p_contents, true)
@@ -49,9 +52,11 @@ pub fn parse(tags: Vec<RootTags>) -> String {
                         .contents
                         .iter()
                         .fold(String::new(), |mut acc, content| {
-                            acc += match content {
-                                Contents::Text(Text(text)) => text,
-                                _ => "",
+                            acc += &match content {
+                                Contents::Text(Text(text)) => text.to_string(),
+                                Contents::Code(code) => format!("<code>{}</code>", code.0),
+                                Contents::Bold(bold) => format!("<b>{}</b>", bold.0),
+                                Contents::Italic(italic) => format!("<i>{}</i>", italic.0),
                             };
                             acc
                         })
@@ -89,9 +94,11 @@ pub fn parse(tags: Vec<RootTags>) -> String {
                         "{}<li>{}",
                         "\t".repeat(li.indent),
                         li.contents.iter().fold(String::new(), |mut acc, content| {
-                            acc += match content {
-                                Contents::Text(Text(text)) => text,
-                                _ => "",
+                            acc += &match content {
+                                Contents::Text(Text(text)) => text.to_string(),
+                                Contents::Code(code) => format!("<code>{}</code>", code.0),
+                                Contents::Bold(bold) => format!("<b>{}</b>", bold.0),
+                                Contents::Italic(italic) => format!("<i>{}</i>", italic.0),
                             };
                             acc
                         })
@@ -118,7 +125,7 @@ pub fn parse(tags: Vec<RootTags>) -> String {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lexer::{Code, Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P},
+        lexer::{Bold, Code, Contents, Italic, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P},
         parser::parse,
     };
 
@@ -131,6 +138,34 @@ mod tests {
                     Contents::Code(Code("コード".to_string())),
                 ]))],
                 "<p>テキスト<code>コード</code></p>\n",
+            ),
+            (
+                vec![RootTags::P(P(vec![Contents::Italic(Italic(
+                    "イタリック".to_string(),
+                ))]))],
+                "<p><i>イタリック</i></p>\n",
+            ),
+            (
+                vec![RootTags::P(P(vec![Contents::Bold(Bold(
+                    "ボールド".to_string(),
+                ))]))],
+                "<p><b>ボールド</b></p>\n",
+            ),
+            (
+                vec![RootTags::P(P(vec![
+                    Contents::Italic(Italic("イタリック".to_string())),
+                    Contents::Bold(Bold("ボールド".to_string())),
+                ]))],
+                "<p><i>イタリック</i><b>ボールド</b></p>\n",
+            ),
+            (
+                vec![RootTags::P(P(vec![
+                    Contents::Text(Text("テキスト".to_string())),
+                    Contents::Italic(Italic("イタリック".to_string())),
+                    Contents::Code(Code("コード".to_string())),
+                    Contents::Bold(Bold("ボールド".to_string())),
+                ]))],
+                "<p>テキスト<i>イタリック</i><code>コード</code><b>ボールド</b></p>\n",
             ),
             (
                 vec![RootTags::H1(H1("見出し1".to_string()))],
@@ -173,6 +208,63 @@ mod tests {
                     contents: vec![Contents::Text(Text("リスト".to_string()))],
                 }])],
                 "<ol>\n<li>リスト</li>\n</ol>\n",
+            ),
+            (
+                vec![RootTags::Li(vec![Li {
+                    list_type: ListTypes::Ul,
+                    indent: 0,
+                    contents: vec![
+                        Contents::Text(Text("テキスト".to_string())),
+                        Contents::Italic(Italic("イタリック".to_string())),
+                        Contents::Code(Code("コード".to_string())),
+                        Contents::Bold(Bold("ボールド".to_string())),
+                    ],
+                }])],
+                "<ul>\n<li>テキスト<i>イタリック</i><code>コード</code><b>ボールド</b></li>\n</ul>\n",
+            ),
+            (
+                vec![RootTags::Li(vec![
+                  Li {
+                    list_type: ListTypes::Ul,
+                    indent: 0,
+                    contents: vec![
+                        Contents::Text(Text("テキスト".to_string())),
+                        Contents::Italic(Italic("イタリック".to_string())),
+                        Contents::Code(Code("コード".to_string())),
+                        Contents::Bold(Bold("ボールド".to_string())),
+                    ],
+                },
+                  Li {
+                    list_type: ListTypes::Ul,
+                    indent: 2,
+                    contents: vec![
+                        Contents::Text(Text("テキスト".to_string())),
+                        Contents::Italic(Italic("イタリック".to_string())),
+                        Contents::Code(Code("コード".to_string())),
+                        Contents::Bold(Bold("ボールド".to_string())),
+                    ],
+                },
+                ])],
+                "<ul>
+<li>テキスト<i>イタリック</i><code>コード</code><b>ボールド</b>
+\t\t<ul>
+\t\t<li>テキスト<i>イタリック</i><code>コード</code><b>ボールド</b></li>
+\t\t</ul>
+</li>
+</ul>\n",
+            ),
+            (
+                vec![RootTags::Li(vec![Li {
+                    list_type: ListTypes::Ol,
+                    indent: 0,
+                    contents: vec![
+                        Contents::Text(Text("テキスト".to_string())),
+                        Contents::Italic(Italic("イタリック".to_string())),
+                        Contents::Code(Code("コード".to_string())),
+                        Contents::Bold(Bold("ボールド".to_string())),
+                    ],
+                }])],
+                "<ol>\n<li>テキスト<i>イタリック</i><code>コード</code><b>ボールド</b></li>\n</ol>\n",
             ),
             (
                 vec![RootTags::Pre(Pre(

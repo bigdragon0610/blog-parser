@@ -158,7 +158,8 @@ pub fn tokenize(input: &str) -> Vec<RootTags> {
                 if text.starts_with("```") {
                     tokenize_codeblock(&mut lexer);
                 } else {
-                    tokenize_p_contents(&text, &mut lexer);
+                    let p_contents = tokenize_contents(&text);
+                    lexer.output.push(RootTags::P(P(p_contents)));
                 }
             }
         }
@@ -190,10 +191,11 @@ fn tokenize_list(lexer: &mut Lexer) {
     lexer.next_char();
     lexer.skip_whitespace();
     let text = lexer.read_to_eol();
+    let contents = tokenize_contents(&text);
     let next_li = Li {
         list_type: ListTypes::Ul,
         indent: lexer.indent,
-        contents: vec![Contents::Text(Text(text))],
+        contents,
     };
     if let Some(RootTags::Li(lists)) = lexer.output.last_mut() {
         lists.push(next_li);
@@ -208,10 +210,11 @@ fn tokenize_ordered_list(lexer: &mut Lexer) {
         lexer.next_char();
         lexer.skip_whitespace();
         let text = lexer.read_to_eol();
+        let contents = tokenize_contents(&text);
         let next_li = Li {
             list_type: ListTypes::Ol,
             indent: lexer.indent,
-            contents: vec![Contents::Text(Text(text))],
+            contents,
         };
         if let Some(RootTags::Li(lists)) = lexer.output.last_mut() {
             lists.push(next_li);
@@ -240,9 +243,9 @@ fn tokenize_codeblock(lexer: &mut Lexer) {
     lexer.output.push(RootTags::Pre(Pre(code)));
 }
 
-fn tokenize_p_contents(text: &str, lexer: &mut Lexer) {
-    let mut p_contents = Vec::<Contents>::new();
-    let mut text = text.chars();
+fn tokenize_contents(text: &str) -> Vec<Contents> {
+    let mut contents = Vec::<Contents>::new();
+    let mut text = text.chars().peekable();
     while let Some(c) = text.next() {
         match c {
             '`' => {
@@ -253,25 +256,46 @@ fn tokenize_p_contents(text: &str, lexer: &mut Lexer) {
                     }
                     code.0.push(c);
                 }
-                p_contents.push(Contents::Code(code));
+                contents.push(Contents::Code(code));
+            }
+            '*' => {
+                if text.next_if_eq(&'*').is_some() {
+                    let mut bold = Bold(String::new());
+                    while let Some(c) = text.next() {
+                        if c == '*' && text.next_if_eq(&'*').is_some() {
+                            break;
+                        }
+                        bold.0.push(c);
+                    }
+                    contents.push(Contents::Bold(bold));
+                } else {
+                    let mut italic = Italic(String::new());
+                    while let Some(c) = text.next() {
+                        if c == '*' {
+                            break;
+                        }
+                        italic.0.push(c);
+                    }
+                    contents.push(Contents::Italic(italic));
+                }
             }
             _ => {
-                if let Some(Contents::Text(text)) = p_contents.last_mut() {
+                if let Some(Contents::Text(text)) = contents.last_mut() {
                     text.0.push(c);
                 } else {
-                    p_contents.push(Contents::Text(Text(c.to_string())));
+                    contents.push(Contents::Text(Text(c.to_string())));
                 }
             }
         }
     }
-    lexer.output.push(RootTags::P(P(p_contents)));
+    contents
 }
 
 #[cfg(test)]
 mod tests {
     use crate::lexer::tokenize;
 
-    use super::{Code, Contents, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P};
+    use super::{Bold, Code, Contents, Italic, Li, ListTypes, Pre, RootTags, Text, H1, H2, H3, P};
 
     #[test]
     fn test_tokenize() {
@@ -281,6 +305,34 @@ mod tests {
                 vec![RootTags::P(P(vec![
                     Contents::Text(Text("テキスト".to_string())),
                     Contents::Code(Code("コード".to_string())),
+                ]))],
+            ),
+            (
+                "*イタリック*",
+                vec![RootTags::P(P(vec![Contents::Italic(Italic(
+                    "イタリック".to_string(),
+                ))]))],
+            ),
+            (
+                "**ボールド**",
+                vec![RootTags::P(P(vec![Contents::Bold(Bold(
+                    "ボールド".to_string(),
+                ))]))],
+            ),
+            (
+                "*イタリック***ボールド**",
+                vec![RootTags::P(P(vec![
+                    Contents::Italic(Italic("イタリック".to_string())),
+                    Contents::Bold(Bold("ボールド".to_string())),
+                ]))],
+            ),
+            (
+                "テキスト*イタリック*`コード`**ボールド**",
+                vec![RootTags::P(P(vec![
+                    Contents::Text(Text("テキスト".to_string())),
+                    Contents::Italic(Italic("イタリック".to_string())),
+                    Contents::Code(Code("コード".to_string())),
+                    Contents::Bold(Bold("ボールド".to_string())),
                 ]))],
             ),
             ("# 見出し1", vec![RootTags::H1(H1("見出し1".to_string()))]),
@@ -412,6 +464,58 @@ mod tests {
                         contents: vec![Contents::Text(Text("リスト3".to_string()))],
                     },
                 ])],
+            ),
+            (
+                "- テキスト*イタリック*`コード`**ボールド**",
+                vec![RootTags::Li(vec![Li {
+                    list_type: ListTypes::Ul,
+                    indent: 0,
+                    contents: vec![
+                        Contents::Text(Text("テキスト".to_string())),
+                        Contents::Italic(Italic("イタリック".to_string())),
+                        Contents::Code(Code("コード".to_string())),
+                        Contents::Bold(Bold("ボールド".to_string())),
+                    ],
+                }])],
+            ),
+            (
+                "- テキスト*イタリック*`コード`**ボールド**
+\t\t- テキスト*イタリック*`コード`**ボールド**",
+                vec![RootTags::Li(vec![
+                    Li {
+                        list_type: ListTypes::Ul,
+                        indent: 0,
+                        contents: vec![
+                            Contents::Text(Text("テキスト".to_string())),
+                            Contents::Italic(Italic("イタリック".to_string())),
+                            Contents::Code(Code("コード".to_string())),
+                            Contents::Bold(Bold("ボールド".to_string())),
+                        ],
+                    },
+                    Li {
+                        list_type: ListTypes::Ul,
+                        indent: 2,
+                        contents: vec![
+                            Contents::Text(Text("テキスト".to_string())),
+                            Contents::Italic(Italic("イタリック".to_string())),
+                            Contents::Code(Code("コード".to_string())),
+                            Contents::Bold(Bold("ボールド".to_string())),
+                        ],
+                    },
+                ])],
+            ),
+            (
+                "1. テキスト*イタリック*`コード`**ボールド**",
+                vec![RootTags::Li(vec![Li {
+                    list_type: ListTypes::Ol,
+                    indent: 0,
+                    contents: vec![
+                        Contents::Text(Text("テキスト".to_string())),
+                        Contents::Italic(Italic("イタリック".to_string())),
+                        Contents::Code(Code("コード".to_string())),
+                        Contents::Bold(Bold("ボールド".to_string())),
+                    ],
+                }])],
             ),
             (
                 "```
